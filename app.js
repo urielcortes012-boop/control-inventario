@@ -14,7 +14,7 @@ function showToast(message, type = 'success') {
 }
 
 function loadUserProducts() {
-    const saved = localStorage.getItem(`products_${currentUser}`);
+    const saved = localStorage.getItem(`products_global`);
     if (saved) {
         products = JSON.parse(saved);
     } else {
@@ -35,7 +35,7 @@ function loadUserProducts() {
 
 function saveUserProducts() {
     if (currentUser) {
-        localStorage.setItem(`products_${currentUser}`, JSON.stringify(products));
+        localStorage.setItem(`products_global`, JSON.stringify(products));
     }
 }
 
@@ -60,7 +60,28 @@ let currentSubtotal = 0;
 // Initialize
 function init() {
     loadUserProducts();
-    document.querySelector('.user-info .details .name').textContent = currentUser;
+    const users = JSON.parse(localStorage.getItem('app_users') || '{}');
+    const u = users[currentUser] || {};
+    
+    document.querySelector('.user-info .details .name').textContent = u.name || currentUser;
+    document.querySelector('.user-info .details .role').textContent = u.role || 'Cajero';
+    
+    const avatarEl = document.getElementById('sidebar-avatar');
+    if (u.avatar) {
+        avatarEl.innerHTML = `<img src="${u.avatar}" alt="Avatar">`;
+    } else {
+        avatarEl.innerHTML = `<img src="avatar1.jpg" alt="Avatar">`;
+    }
+    
+    // Check if password reset is needed
+    if (users[currentUser] && users[currentUser].needsPasswordUpdate) {
+        document.getElementById('password-warning-banner').style.display = 'block';
+        document.getElementById('change-old-pwd').parentElement.style.display = 'none'; // hide old pwd
+    } else {
+        document.getElementById('password-warning-banner').style.display = 'none';
+        document.getElementById('change-old-pwd').parentElement.style.display = 'flex';
+    }
+
     renderProducts();
     renderInventory();
     renderReports();
@@ -208,9 +229,9 @@ confirmCheckoutBtn.addEventListener('click', () => {
         total: currentSubtotal,
         profit: cart.reduce((acc, item) => acc + ((item.product.salePrice - item.product.purchasePrice) * item.qty), 0)
     };
-    let sales = JSON.parse(localStorage.getItem(`sales_${currentUser}`) || '[]');
+    let sales = JSON.parse(localStorage.getItem(`sales_global`) || '[]');
     sales.push(sale);
-    localStorage.setItem(`sales_${currentUser}`, JSON.stringify(sales));
+    localStorage.setItem(`sales_global`, JSON.stringify(sales));
 
     showToast(`Venta procesada. Cambio: $${change.toFixed(2)}`, 'success');
     checkoutModal.classList.add('hidden');
@@ -324,7 +345,7 @@ function setupNavigation() {
 
 // Reports & Users
 function renderReports() {
-    const sales = JSON.parse(localStorage.getItem(`sales_${currentUser}`) || '[]');
+    const sales = JSON.parse(localStorage.getItem(`sales_global`) || '[]');
     const statsGrid = document.getElementById('stats-grid');
     const salesTable = document.getElementById('sales-table-body');
     
@@ -370,24 +391,100 @@ function renderReports() {
     `;
 }
 
+let adminUnlocked = false;
+let editingUserEmail = null;
+
+function updateAvatarAvailability() {
+    const users = JSON.parse(localStorage.getItem('app_users') || '{}');
+    const takenAvatars = Object.values(users).map(u => u.avatar).filter(a => a);
+    
+    ['reg-avatar', 'admin-avatar'].forEach(name => {
+        document.querySelectorAll(`input[name="${name}"]`).forEach(radio => {
+            const label = document.querySelector(`label[for="${radio.id}"]`);
+            // Exclude current editing user's avatar from taken list if applicable
+            let isTaken = takenAvatars.includes(radio.value);
+            if (editingUserEmail && users[editingUserEmail] && users[editingUserEmail].avatar === radio.value) {
+                isTaken = false;
+            }
+            
+            if (isTaken) {
+                radio.disabled = true;
+                if (label) {
+                    label.style.opacity = '0.3';
+                    label.style.cursor = 'not-allowed';
+                }
+            } else {
+                radio.disabled = false;
+                if (label) {
+                    label.style.opacity = '1';
+                    label.style.cursor = 'pointer';
+                }
+            }
+        });
+    });
+}
+
+window.showPasswords = false;
+
+document.getElementById('btn-toggle-passwords').addEventListener('click', () => {
+    window.showPasswords = !window.showPasswords;
+    renderUsers();
+});
+
 function renderUsers() {
     const usersTable = document.getElementById('users-table-body');
-    const users = JSON.parse(localStorage.getItem('app_users') || '{}');
+    let users = JSON.parse(localStorage.getItem('app_users') || '{}');
+    
+    if (adminUnlocked) {
+        document.getElementById('admin-add-user-section').style.display = 'block';
+        document.getElementById('change-password-section').style.display = 'block';
+        document.getElementById('escalate-admin-section').style.display = 'none';
+        document.getElementById('btn-toggle-passwords').style.display = 'inline-block';
+        document.getElementById('btn-toggle-passwords').innerHTML = window.showPasswords ? '<i class="fa-solid fa-eye-slash"></i> Ocultar Contraseñas' : '<i class="fa-solid fa-eye"></i> Mostrar Contraseñas';
+    } else {
+        document.getElementById('admin-add-user-section').style.display = 'none';
+        document.getElementById('change-password-section').style.display = 'none';
+        document.getElementById('escalate-admin-section').style.display = 'block';
+        document.getElementById('btn-toggle-passwords').style.display = 'none';
+        window.showPasswords = false;
+    }
     
     usersTable.innerHTML = '';
-    for (const [username, pass] of Object.entries(users)) {
-        const isCurrent = username === currentUser;
-        const role = username === 'admin' ? 'Administrador' : 'Cajero';
+    for (const [email, userData] of Object.entries(users)) {
+        const isCurrent = email === currentUser;
+        const role = userData.role || (email === 'urielcortes012@gmail.com' ? 'Administrador' : 'Cajero');
         const status = isCurrent ? '<span class="badge stock-ok">Activo Ahora</span>' : '<span class="badge" style="background: rgba(255,255,255,0.1);">Desconectado</span>';
+        const realName = userData.name || 'Sin Nombre';
+        
+        let actions = '';
+        if (adminUnlocked) {
+            actions = `<button class="btn-secondary" onclick="editUser('${email}')" style="padding: 0.5rem; font-size: 1rem;" title="Editar"><i class="fa-solid fa-pen"></i></button>`;
+        }
+        
+        let passDisplay = '********';
+        if (adminUnlocked && window.showPasswords) {
+            passDisplay = `<span style="font-family: monospace; letter-spacing: 1px;">${userData.pass}</span>`;
+        }
         
         const tr = document.createElement('tr');
         tr.innerHTML = `
-            <td><strong>${username}</strong></td>
+            <td>
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <div style="width: 30px; height: 30px; border-radius: 50%; overflow: hidden; border: 1px solid var(--border-color); flex-shrink: 0;">
+                        <img src="${userData.avatar || 'avatar1.jpg'}" style="width:100%; height:100%; object-fit:cover;">
+                    </div>
+                    ${realName}
+                </div>
+            </td>
+            <td><strong>${email}</strong></td>
             <td>${role}</td>
             <td>${status}</td>
+            <td>${passDisplay}</td>
+            <td>${actions}</td>
         `;
         usersTable.appendChild(tr);
     }
+    updateAvatarAvailability();
 }
 
 // Excel Export
@@ -403,7 +500,42 @@ document.getElementById('btn-export-excel').addEventListener('click', () => {
     const worksheet = XLSX.utils.json_to_sheet(data);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Inventario");
-    XLSX.writeFile(workbook, `${currentUser}_inventario.xlsx`);
+    XLSX.writeFile(workbook, `Inventario_Dartagnan.xlsx`);
+});
+
+// Excel Export - Reports
+document.getElementById('btn-export-reports').addEventListener('click', () => {
+    const sales = JSON.parse(localStorage.getItem(`sales_global`) || '[]');
+    if (sales.length === 0) {
+        return showToast('No hay ventas para exportar', 'error');
+    }
+    const data = sales.map(s => ({
+        "Fecha / Hora": s.date,
+        "Artículos Vendidos": s.items,
+        "Total Venta": s.total,
+        "Ganancia Estimada": s.profit
+    }));
+    
+    let totalIncome = 0;
+    let totalProfit = 0;
+    let totalItems = 0;
+    sales.forEach(s => {
+        totalIncome += s.total;
+        totalProfit += s.profit;
+        totalItems += s.items;
+    });
+    
+    data.push({
+        "Fecha / Hora": "TOTALES",
+        "Artículos Vendidos": totalItems,
+        "Total Venta": totalIncome,
+        "Ganancia Estimada": totalProfit
+    });
+    
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Reporte_Ventas");
+    XLSX.writeFile(workbook, `Reporte_Ventas_Dartagnan.xlsx`);
 });
 
 // Excel Import
@@ -453,18 +585,36 @@ document.getElementById('file-import').addEventListener('change', (e) => {
 const loginScreen = document.getElementById('login-screen');
 const mainApp = document.getElementById('main-app');
 
+function isValidEmail(email) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
 document.getElementById('btn-login').addEventListener('click', () => {
     const user = document.getElementById('login-username').value.trim();
     const pass = document.getElementById('login-password').value;
     const users = JSON.parse(localStorage.getItem('app_users') || '{}');
     
-    if (user === 'admin' && pass === 'admin') { // Admin backdoor
-        users[user] = pass;
-        localStorage.setItem('app_users', JSON.stringify(users));
+    if (!users['urielcortes012@gmail.com']) {
+        users['urielcortes012@gmail.com'] = { name: 'Uriel Cortés (Admin)', pass: 'admin123', birthDate: '1990-01-01', secret: 'dartagnan', role: 'Administrador', avatar: 'avatar1.jpg' };
+    } else {
+        users['urielcortes012@gmail.com'].role = 'Administrador';
+        if (!users['urielcortes012@gmail.com'].avatar) users['urielcortes012@gmail.com'].avatar = 'avatar1.jpg';
     }
+    localStorage.setItem('app_users', JSON.stringify(users));
 
-    if (users[user] && users[user] === pass) {
+    if (users[user] && users[user].pass === pass) {
         currentUser = user;
+        
+        // Remember email
+        if (document.getElementById('remember-email').checked) {
+            localStorage.setItem('saved_email', user);
+        } else {
+            localStorage.removeItem('saved_email');
+        }
+        
+        // Save active session
+        localStorage.setItem('active_session', user);
+
         loginScreen.style.display = 'none';
         mainApp.style.display = 'flex';
         init();
@@ -474,14 +624,49 @@ document.getElementById('btn-login').addEventListener('click', () => {
     }
 });
 
+// Load saved email on startup & Auto login
+window.addEventListener('DOMContentLoaded', () => {
+    const savedEmail = localStorage.getItem('saved_email');
+    if (savedEmail) {
+        document.getElementById('login-username').value = savedEmail;
+    }
+    
+    // Auto-login logic
+    const activeSession = localStorage.getItem('active_session');
+    if (activeSession) {
+        const users = JSON.parse(localStorage.getItem('app_users') || '{}');
+        if (users[activeSession]) {
+            currentUser = activeSession;
+            document.getElementById('login-screen').style.display = 'none';
+            document.getElementById('main-app').style.display = 'flex';
+            init();
+        } else {
+            localStorage.removeItem('active_session');
+        }
+    }
+});
+
 document.getElementById('btn-register').addEventListener('click', () => {
     const user = document.getElementById('reg-username').value.trim();
     const pass = document.getElementById('reg-password').value;
-    if (!user || !pass) return showToast('Completa ambos campos', 'error');
+    const birthDate = document.getElementById('reg-birth-date').value;
+    const secret = document.getElementById('reg-secret').value.trim();
+    
+    if (!user || !pass || !birthDate || !secret) return showToast('Completa todos los campos', 'error');
+    if (!isValidEmail(user)) return showToast('El usuario debe ser un correo válido', 'error');
+
     const users = JSON.parse(localStorage.getItem('app_users') || '{}');
+    
+    if (Object.keys(users).length >= 4) {
+        return showToast('Límite máximo de 4 usuarios alcanzado', 'error');
+    }
+
     if (users[user]) return showToast('El usuario ya existe', 'error');
     
-    users[user] = pass;
+    const avatarInput = document.querySelector('input[name="reg-avatar"]:checked');
+    const avatar = avatarInput ? avatarInput.value : 'avatar1.jpg';
+    
+    users[user] = { pass, birthDate, secret, role: 'Cajero', name: user, avatar };
     localStorage.setItem('app_users', JSON.stringify(users));
     showToast('Cuenta creada exitosamente. Inicia sesión.', 'success');
     document.getElementById('btn-show-login').click();
@@ -489,12 +674,211 @@ document.getElementById('btn-register').addEventListener('click', () => {
 
 document.getElementById('btn-show-register').addEventListener('click', () => {
     document.getElementById('login-form').classList.add('hidden');
+    document.getElementById('forgot-password-form').classList.add('hidden');
     document.getElementById('register-form').classList.remove('hidden');
 });
 
 document.getElementById('btn-show-login').addEventListener('click', () => {
     document.getElementById('register-form').classList.add('hidden');
+    document.getElementById('forgot-password-form').classList.add('hidden');
     document.getElementById('login-form').classList.remove('hidden');
 });
 
+document.getElementById('link-forgot-password').addEventListener('click', (e) => {
+    e.preventDefault();
+    document.getElementById('login-form').classList.add('hidden');
+    document.getElementById('register-form').classList.add('hidden');
+    document.getElementById('forgot-password-form').classList.remove('hidden');
+});
+
+document.getElementById('btn-back-to-login').addEventListener('click', () => {
+    document.getElementById('forgot-password-form').classList.add('hidden');
+    document.getElementById('login-form').classList.remove('hidden');
+});
+
+document.getElementById('btn-recover-password').addEventListener('click', () => {
+    const email = document.getElementById('forgot-email').value.trim();
+    const birthDate = document.getElementById('forgot-birth-date').value;
+    const secret = document.getElementById('forgot-secret').value.trim();
+    
+    if (!email || !birthDate || !secret) return showToast('Completa todos los campos', 'error');
+    
+    const users = JSON.parse(localStorage.getItem('app_users') || '{}');
+    
+    if (users[email] && users[email].birthDate === birthDate && users[email].secret.toLowerCase() === secret.toLowerCase()) {
+        users[email].needsPasswordUpdate = true;
+        localStorage.setItem('app_users', JSON.stringify(users));
+        
+        showToast(`Verificación exitosa. Iniciando sesión...`, 'success');
+        document.getElementById('btn-back-to-login').click();
+        
+        // Direct login
+        currentUser = email;
+        adminUnlocked = true;
+        localStorage.setItem('active_session', email); // Save active session
+        loginScreen.style.display = 'none';
+        mainApp.style.display = 'flex';
+        init();
+        
+    } else {
+        showToast('Datos incorrectos. No se pudo recuperar.', 'error');
+    }
+});
+
+// Change Password inside App
+document.getElementById('btn-change-password').addEventListener('click', () => {
+    const oldPwd = document.getElementById('change-old-pwd').value;
+    const newPwd = document.getElementById('change-new-pwd').value;
+    
+    const users = JSON.parse(localStorage.getItem('app_users') || '{}');
+    const u = users[currentUser];
+
+    if (u.needsPasswordUpdate) {
+        if (!newPwd) return showToast('Ingresa la nueva contraseña', 'error');
+    } else {
+        if (!oldPwd || !newPwd) return showToast('Completa ambos campos', 'error');
+        if (u.pass !== oldPwd) return showToast('La contraseña actual es incorrecta', 'error');
+    }
+
+    u.pass = newPwd;
+    u.needsPasswordUpdate = false;
+    localStorage.setItem('app_users', JSON.stringify(users));
+    
+    showToast('Contraseña actualizada correctamente', 'success');
+    document.getElementById('change-old-pwd').value = '';
+    document.getElementById('change-new-pwd').value = '';
+    document.getElementById('password-warning-banner').style.display = 'none';
+    document.getElementById('change-old-pwd').parentElement.style.display = 'block';
+    renderUsers();
+});
+
+// Admin add/edit user logic
+
+window.editUser = function(email) {
+    const users = JSON.parse(localStorage.getItem('app_users') || '{}');
+    const u = users[email];
+    if (u) {
+        document.getElementById('admin-user-title').innerHTML = '<i class="fa-solid fa-user-pen"></i> Editar Usuario';
+        document.getElementById('admin-user-email').value = email;
+        document.getElementById('admin-user-email').disabled = true;
+        document.getElementById('admin-user-name').value = u.name || email;
+        document.getElementById('admin-user-role').value = u.role || 'Cajero';
+        document.getElementById('admin-user-pass').value = '';
+        if (u.avatar) {
+            const rad = document.querySelector(`input[name="admin-avatar"][value="${u.avatar}"]`);
+            if (rad && !rad.disabled) rad.checked = true;
+        }
+        document.getElementById('btn-admin-cancel-user').style.display = 'inline-block';
+        editingUserEmail = email;
+        updateAvatarAvailability();
+        
+        // Scroll to the edit section if on a smaller screen where it might have wrapped
+        document.getElementById('admin-add-user-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+};
+
+document.getElementById('btn-admin-cancel-user').addEventListener('click', () => {
+    document.getElementById('admin-user-title').innerHTML = '<i class="fa-solid fa-user-plus"></i> Agregar Usuario';
+    document.getElementById('admin-user-email').value = '';
+    document.getElementById('admin-user-email').disabled = false;
+    document.getElementById('admin-user-name').value = '';
+    document.getElementById('admin-user-role').value = 'Cajero';
+    document.getElementById('admin-user-pass').value = '';
+    document.getElementById('btn-admin-cancel-user').style.display = 'none';
+    editingUserEmail = null;
+});
+
+document.getElementById('btn-admin-save-user').addEventListener('click', () => {
+    const email = document.getElementById('admin-user-email').value.trim();
+    const name = document.getElementById('admin-user-name').value.trim() || email;
+    const role = email === 'urielcortes012@gmail.com' ? 'Administrador' : 'Cajero'; // Enforce Cajero
+    const pass = document.getElementById('admin-user-pass').value;
+    
+    const avatarInput = document.querySelector('input[name="admin-avatar"]:checked');
+    const avatar = avatarInput ? avatarInput.value : 'avatar1.jpg';
+    
+    if (!email) return showToast('Completa el nombre de usuario', 'error');
+    if (!editingUserEmail && !pass) return showToast('Debes asignar una contraseña al nuevo usuario', 'error');
+    
+    const users = JSON.parse(localStorage.getItem('app_users') || '{}');
+    
+    if (!editingUserEmail) {
+        if (Object.keys(users).length >= 4) {
+            return showToast('Límite de 4 usuarios alcanzado. Debes eliminar uno.', 'error');
+        }
+        if (users[email]) {
+            return showToast('El usuario ya existe', 'error');
+        }
+        users[email] = { name, pass, role, birthDate: '2000-01-01', secret: '1234', avatar };
+    } else {
+        users[email].name = name;
+        users[email].role = role;
+        users[email].avatar = avatar;
+        if (pass) {
+            users[email].pass = pass;
+        }
+    }
+    
+    localStorage.setItem('app_users', JSON.stringify(users));
+    showToast(editingUserEmail ? 'Usuario actualizado' : 'Usuario creado con éxito', 'success');
+    document.getElementById('btn-admin-cancel-user').click();
+    renderUsers();
+});
+
+// Escalate Privileges & Exit Admin
+document.getElementById('btn-escalate-admin').addEventListener('click', () => {
+    const pwd = document.getElementById('escalate-admin-pwd').value;
+    if (!pwd) return showToast('Ingresa la contraseña del administrador', 'error');
+    
+    const users = JSON.parse(localStorage.getItem('app_users') || '{}');
+    
+    // Check if entered password matches the real admin's password (urielcortes012@gmail.com)
+    const validAdmin = users['urielcortes012@gmail.com'] && users['urielcortes012@gmail.com'].pass === pwd;
+    
+    if (validAdmin) {
+        adminUnlocked = true;
+        showToast('¡Acceso concedido para gestionar usuarios!', 'success');
+        document.getElementById('escalate-admin-pwd').value = '';
+        renderUsers();
+    } else {
+        showToast('Contraseña de administrador incorrecta', 'error');
+    }
+});
+
+document.getElementById('btn-exit-admin').addEventListener('click', () => {
+    adminUnlocked = false;
+    showToast('Modo administrador cerrado', 'success');
+    renderUsers();
+});
+
 // Wait for login instead of init() at boot
+
+// Logout dropdown logic
+document.getElementById('user-info-btn').addEventListener('click', (e) => {
+    const dropdown = document.getElementById('user-dropdown-menu');
+    if (dropdown.style.display === 'none') {
+        dropdown.style.display = 'block';
+    } else {
+        dropdown.style.display = 'none';
+    }
+});
+
+// Close dropdown if clicked outside
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('#user-info-btn')) {
+        const dropdown = document.getElementById('user-dropdown-menu');
+        if (dropdown) dropdown.style.display = 'none';
+    }
+});
+
+document.getElementById('btn-logout').addEventListener('click', (e) => {
+    e.stopPropagation();
+    localStorage.removeItem('active_session');
+    currentUser = null;
+    adminUnlocked = false;
+    document.getElementById('main-app').style.display = 'none';
+    document.getElementById('login-screen').style.display = 'flex';
+    document.getElementById('login-password').value = '';
+    document.getElementById('user-dropdown-menu').style.display = 'none';
+    showToast('Sesión cerrada', 'success');
+});
