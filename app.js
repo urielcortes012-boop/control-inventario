@@ -1,24 +1,24 @@
 // Supabase Config
 const SUPABASE_URL = 'https://fcyvcmgoqdylpyqeenjl.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_rqHgBflNmk59A1RCCdH0uw_3sX5Ee6j';
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 async function syncFromCloud() {
     try {
-        const { data: uData } = await supabase.from('users').select('*');
+        const { data: uData } = await supabaseClient.from('users').select('*');
         if (uData && uData.length > 0) {
             const usersObj = {};
             uData.forEach(u => { usersObj[u.email] = { name: u.name, pass: u.pass, role: u.role, avatar: u.avatar, birthDate: u.birth_date, secret: u.secret }; });
             localStorage.setItem('app_users', JSON.stringify(usersObj));
         }
 
-        const { data: pData } = await supabase.from('products').select('*');
+        const { data: pData } = await supabaseClient.from('products').select('*');
         if (pData && pData.length > 0) {
             const prods = pData.map(p => ({ id: p.id, name: p.name, category: p.category, stock: p.stock, purchasePrice: p.purchase_price, salePrice: p.sale_price, icon: p.icon }));
             localStorage.setItem('products_global', JSON.stringify(prods));
         }
 
-        const { data: sData } = await supabase.from('sales').select('*').order('created_at', { ascending: true });
+        const { data: sData } = await supabaseClient.from('sales').select('*').order('created_at', { ascending: true });
         if (sData && sData.length > 0) {
             const sales = sData.map(s => ({ id: s.id, date: s.date, time: s.time, user: s.user, items: s.items, total: parseFloat(s.total), profit: parseFloat(s.profit) }));
             localStorage.setItem('sales_global', JSON.stringify(sales));
@@ -38,7 +38,7 @@ localStorage.setItem = function(key, value) {
             const payload = Object.entries(usersObj).map(([email, u]) => ({
                 email, name: u.name, pass: u.pass, role: u.role, avatar: u.avatar, birth_date: u.birthDate, secret: u.secret
             }));
-            supabase.from('users').upsert(payload).then();
+            supabaseClient.from('users').upsert(payload).then();
         } catch(e){}
     } else if (key === 'products_global') {
         try {
@@ -46,7 +46,7 @@ localStorage.setItem = function(key, value) {
             const payload = prods.map(p => ({
                 id: p.id, name: p.name, category: p.category, stock: p.stock, purchase_price: p.purchasePrice, sale_price: p.salePrice, icon: p.icon
             }));
-            supabase.from('products').upsert(payload).then();
+            supabaseClient.from('products').upsert(payload).then();
         } catch(e){}
     }
 };
@@ -288,7 +288,7 @@ confirmCheckoutBtn.addEventListener('click', () => {
     };
     
     // Push sale to cloud
-    supabase.from('sales').insert([{
+    supabaseClient.from('sales').insert([{
         date: sale.date, time: sale.time, "user": sale.user, items: sale.items, total: sale.total, profit: sale.profit
     }]).then();
     
