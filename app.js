@@ -223,8 +223,12 @@ confirmCheckoutBtn.addEventListener('click', () => {
     const change = paid - currentSubtotal;
 
     // Save sale for reports
+    const users = JSON.parse(localStorage.getItem('app_users') || '{}');
+    const uName = users[currentUser] ? (users[currentUser].name || currentUser) : 'Desconocido';
     const sale = {
-        date: new Date().toLocaleString(),
+        date: new Date().toLocaleDateString(),
+        time: new Date().toLocaleTimeString(),
+        user: uName,
         items: cart.reduce((acc, item) => acc + item.qty, 0),
         total: currentSubtotal,
         profit: cart.reduce((acc, item) => acc + ((item.product.salePrice - item.product.purchasePrice) * item.qty), 0)
@@ -361,9 +365,15 @@ function renderReports() {
         totalProfit += sale.profit;
         totalItems += sale.items;
         
+        const displayDate = sale.time ? sale.date : (sale.date.split(',')[0] || sale.date);
+        const displayTime = sale.time ? sale.time : (sale.date.split(',')[1] || '--:--');
+        const displayUser = sale.user || 'Desconocido';
+        
         const tr = document.createElement('tr');
         tr.innerHTML = `
-            <td>${sale.date}</td>
+            <td>${displayDate}</td>
+            <td>${displayTime}</td>
+            <td>${displayUser}</td>
             <td>${sale.items}</td>
             <td>$${sale.total.toFixed(2)}</td>
             <td style="color: var(--success); font-weight: bold;">$${sale.profit.toFixed(2)}</td>
@@ -509,12 +519,20 @@ document.getElementById('btn-export-reports').addEventListener('click', () => {
     if (sales.length === 0) {
         return showToast('No hay ventas para exportar', 'error');
     }
-    const data = sales.map(s => ({
-        "Fecha / Hora": s.date,
-        "Artículos Vendidos": s.items,
-        "Total Venta": s.total,
-        "Ganancia Estimada": s.profit
-    }));
+    const data = sales.map(s => {
+        const displayDate = s.time ? s.date : (s.date.split(',')[0] || s.date);
+        const displayTime = s.time ? s.time : (s.date.split(',')[1] || '--:--');
+        const displayUser = s.user || 'Desconocido';
+        
+        return {
+            "Fecha": displayDate,
+            "Hora": displayTime,
+            "Cajero": displayUser,
+            "Artículos Vendidos": s.items,
+            "Total Venta": s.total,
+            "Ganancia Estimada": s.profit
+        };
+    });
     
     let totalIncome = 0;
     let totalProfit = 0;
@@ -526,7 +544,9 @@ document.getElementById('btn-export-reports').addEventListener('click', () => {
     });
     
     data.push({
-        "Fecha / Hora": "TOTALES",
+        "Fecha": "TOTALES",
+        "Hora": "",
+        "Cajero": "",
         "Artículos Vendidos": totalItems,
         "Total Venta": totalIncome,
         "Ganancia Estimada": totalProfit
@@ -760,7 +780,7 @@ window.editUser = function(email) {
     if (u) {
         document.getElementById('admin-user-title').innerHTML = '<i class="fa-solid fa-user-pen"></i> Editar Usuario';
         document.getElementById('admin-user-email').value = email;
-        document.getElementById('admin-user-email').disabled = true;
+        document.getElementById('admin-user-email').disabled = (email === 'urielcortes012@gmail.com');
         document.getElementById('admin-user-name').value = u.name || email;
         document.getElementById('admin-user-role').value = u.role || 'Cajero';
         document.getElementById('admin-user-pass').value = '';
@@ -797,7 +817,8 @@ document.getElementById('btn-admin-save-user').addEventListener('click', () => {
     const avatarInput = document.querySelector('input[name="admin-avatar"]:checked');
     const avatar = avatarInput ? avatarInput.value : 'avatar1.jpg';
     
-    if (!email) return showToast('Completa el nombre de usuario', 'error');
+    if (!email) return showToast('Completa el correo electrónico', 'error');
+    if (!isValidEmail(email)) return showToast('Debes ingresar un correo válido', 'error');
     if (!editingUserEmail && !pass) return showToast('Debes asignar una contraseña al nuevo usuario', 'error');
     
     const users = JSON.parse(localStorage.getItem('app_users') || '{}');
@@ -811,6 +832,19 @@ document.getElementById('btn-admin-save-user').addEventListener('click', () => {
         }
         users[email] = { name, pass, role, birthDate: '2000-01-01', secret: '1234', avatar };
     } else {
+        if (email !== editingUserEmail) {
+            if (users[email]) {
+                return showToast('El nuevo correo ya está en uso por otro usuario', 'error');
+            }
+            users[email] = users[editingUserEmail];
+            delete users[editingUserEmail];
+            
+            if (currentUser === editingUserEmail) {
+                currentUser = email;
+                localStorage.setItem('active_session', email);
+            }
+        }
+        
         users[email].name = name;
         users[email].role = role;
         users[email].avatar = avatar;
