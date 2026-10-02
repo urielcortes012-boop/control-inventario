@@ -1,56 +1,3 @@
-// Supabase Config
-const SUPABASE_URL = 'https://fcyvcmgoqdylpyqeenjl.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_rqHgBflNmk59A1RCCdH0uw_3sX5Ee6j';
-const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-async function syncFromCloud() {
-    try {
-        const { data: uData } = await supabaseClient.from('users').select('*');
-        if (uData && uData.length > 0) {
-            const usersObj = {};
-            uData.forEach(u => { usersObj[u.email] = { name: u.name, pass: u.pass, role: u.role, avatar: u.avatar, birthDate: u.birth_date, secret: u.secret }; });
-            localStorage.setItem('app_users', JSON.stringify(usersObj));
-        }
-
-        const { data: pData } = await supabaseClient.from('products').select('*');
-        if (pData && pData.length > 0) {
-            const prods = pData.map(p => ({ id: p.id, name: p.name, category: p.category, stock: p.stock, purchasePrice: p.purchase_price, salePrice: p.sale_price, icon: p.icon }));
-            localStorage.setItem('products_global', JSON.stringify(prods));
-        }
-
-        const { data: sData } = await supabaseClient.from('sales').select('*').order('created_at', { ascending: true });
-        if (sData && sData.length > 0) {
-            const sales = sData.map(s => ({ id: s.id, date: s.date, time: s.time, user: s.user, items: s.items, total: parseFloat(s.total), profit: parseFloat(s.profit) }));
-            localStorage.setItem('sales_global', JSON.stringify(sales));
-        }
-    } catch(err) {
-        console.error("Cloud Sync Error", err);
-    }
-}
-
-// Hook localStorage to automatically sync User & Product changes to cloud
-const originalSetItem = localStorage.setItem;
-localStorage.setItem = function(key, value) {
-    originalSetItem.call(localStorage, key, value);
-    if (key === 'app_users') {
-        try {
-            const usersObj = JSON.parse(value);
-            const payload = Object.entries(usersObj).map(([email, u]) => ({
-                email, name: u.name, pass: u.pass, role: u.role, avatar: u.avatar, birth_date: u.birthDate, secret: u.secret
-            }));
-            supabaseClient.from('users').upsert(payload).then();
-        } catch(e){}
-    } else if (key === 'products_global') {
-        try {
-            const prods = JSON.parse(value);
-            const payload = prods.map(p => ({
-                id: p.id, name: p.name, category: p.category, stock: p.stock, purchase_price: p.purchasePrice, sale_price: p.salePrice, icon: p.icon
-            }));
-            supabaseClient.from('products').upsert(payload).then();
-        } catch(e){}
-    }
-};
-
 let products = [];
 let cart = [];
 let currentUser = null;
@@ -286,11 +233,6 @@ confirmCheckoutBtn.addEventListener('click', () => {
         total: currentSubtotal,
         profit: cart.reduce((acc, item) => acc + ((item.product.salePrice - item.product.purchasePrice) * item.qty), 0)
     };
-    
-    // Push sale to cloud
-    supabaseClient.from('sales').insert([{
-        date: sale.date, time: sale.time, "user": sale.user, items: sale.items, total: sale.total, profit: sale.profit
-    }]).then();
     
     let sales = JSON.parse(localStorage.getItem(`sales_global`) || '[]');
     sales.push(sale);
@@ -704,9 +646,7 @@ document.getElementById('btn-login').addEventListener('click', () => {
 });
 
 // Load saved email on startup & Auto login
-window.addEventListener('DOMContentLoaded', async () => {
-    // Sync data from cloud first
-    await syncFromCloud();
+window.addEventListener('DOMContentLoaded', () => {
     
     const savedEmail = localStorage.getItem('saved_email');
     if (savedEmail) {

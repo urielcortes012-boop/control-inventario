@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>D' Artagnan - Protección y control del stock</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+    <!-- Login Screen -->
+    <div id="login-screen" class="login-overlay">
+        <div class="login-box">
+            <div class="logo" style="flex-direction: column; text-align: center; gap: 0.5rem; font-size: 1.5rem; margin-bottom: 2rem;">
+                <img src="logo.jpg" alt="Logo" style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 2px solid var(--primary-color);">
+                <span>D' Artagnan</span>
+                <span style="font-size: 0.9rem; color: var(--text-muted); font-weight: 400;">Protección y control del stock</span>
+            </div>
+            
+            <div id="login-form">
+                <div class="input-group">
+                    <label>Correo Electrónico</label>
+                    <input type="email" id="login-username" placeholder="ejemplo@correo.com" class="form-control">
+                </div>
+                <div class="input-group">
+                    <label>Contraseña</label>
+                    <input type="password" id="login-password" placeholder="Contraseña" class="form-control">
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; color: var(--text-muted); cursor: pointer;">
+                        <input type="checkbox" id="remember-email" checked> Recordar correo
+                    </label>
+                    <a href="#" id="link-forgot-password" style="color: var(--primary-color); font-size: 0.9rem; text-decoration: none;">¿Olvidaste tu contraseña?</a>
+                </div>
+                <div class="modal-actions" style="flex-direction: column; gap: 1rem;">
+                    <button id="btn-login" class="btn-primary" style="width: 100%;">Iniciar Sesión</button>
+                    <button id="btn-show-register" class="btn-secondary" style="width: 100%;">Crear Nueva Cuenta</button>
+                </div>
+            </div>
+
+            <div id="register-form" class="hidden">
+                <div class="avatar-selector">
+                    <input type="radio" name="reg-avatar" id="reg-avatar1" value="avatar1.jpg" checked>
+                    <label for="reg-avatar1"><img src="avatar1.jpg" alt="Líder Valiente"></label>
+                    <input type="radio" name="reg-avatar" id="reg-avatar2" value="avatar2.jpg">
+                    <label for="reg-avatar2"><img src="avatar2.jpg" alt="Estratega Inteligente"></label>
+                    <input type="radio" name="reg-avatar" id="reg-avatar3" value="avatar3.jpg">
+                    <label for="reg-avatar3"><img src="avatar3.jpg" alt="Disciplinado"></label>
+                    <input type="radio" name="reg-avatar" id="reg-avatar4" value="avatar4.jpg">
+                    <label for="reg-avatar4"><img src="avatar4.jpg" alt="Creativo Audaz"></label>
+                </div>
+                <div class="input-group">
+                    <label>Correo Electrónico</label>
+                    <input type="email" id="reg-username" placeholder="ejemplo@correo.com" class="form-control">
+                </div>
+                <div class="input-group">
+                    <label>Nueva Contraseña</label>
+                    <input type="password" id="reg-password" placeholder="Contraseña" class="form-control">
+                </div>
+                <div class="input-group">
+                    <label>Fecha de Nacimiento</label>
+                    <input type="date" id="reg-birth-date" class="form-control">
+                </div>
+                <div class="input-group">
+                    <label>Pregunta Secreta: ¿Nombre de tu primera mascota?</label>
+                    <input type="text" id="reg-secret" placeholder="Respuesta" class="form-control">
+                </div>
+                <div class="modal-actions" style="flex-direction: column; gap: 1rem;">
+                    <button id="btn-register" class="btn-primary" style="width: 100%; background-color: var(--success);">Registrar Cuenta</button>
+                    <button id="btn-show-login" class="btn-secondary" style="width: 100%;">Volver al Login</button>
+                </div>
+            </div>
+
+            <div id="forgot-password-form" class="hidden">
+                <div class="input-group">
+                    <label>Correo Electrónico</label>
+                    <input type="email" id="forgot-email" placeholder="ejemplo@correo.com" class="form-control">
+                </div>
+                <div class="input-group">
+                    <label>Fecha de Nacimiento</label>
+                    <input type="date" id="forgot-birth-date" class="form-control">
+                </div>
+                <div class="input-group">
+                    <label>Pregunta Secreta: ¿Nombre de tu primera mascota?</label>
+                    <input type="text" id="forgot-secret" placeholder="Respuesta" class="form-control">
+                </div>
+                <div class="modal-actions" style="flex-direction: column; gap: 1rem;">
+                    <button id="btn-recover-password" class="btn-primary" style="width: 100%; background-color: var(--warning);">Recuperar Contraseña</button>
+                    <button id="btn-back-to-login" class="btn-secondary" style="width: 100%;">Volver al Login</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="app-container" id="main-app" style="display: none;">
+        <!-- Sidebar Navigation -->
+        <nav class="sidebar">
+            <div class="logo" style="flex-direction: column; text-align: center; gap: 0.5rem; font-size: 1.3rem;">
+                <img src="logo.jpg" alt="Logo" style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 2px solid var(--primary-color);">
+                <span>D' Artagnan</span>
+                <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: 400;">Protección y control del stock</span>
+            </div>
+            <ul class="nav-links">
+                <li class="active" data-view="pos">
+                    <i class="fa-solid fa-cash-register"></i> Punto de Venta
+                </li>
+                <li data-view="inventory">
+                    <i class="fa-solid fa-boxes-stacked"></i> Inventario
+                </li>
+                <li data-view="reports">
+                    <i class="fa-solid fa-chart-line"></i> Reportes
+                </li>
+                <li data-view="users">
+                    <i class="fa-solid fa-users-gear"></i> Usuarios
+                </li>
+            </ul>
+            <div class="user-info" id="user-info-btn" style="cursor: pointer; position: relative; display: flex; align-items: center; padding: 1rem;">
+                <div class="avatar" id="sidebar-avatar"><img src="avatar1.jpg" alt="Avatar"></div>
+                <div class="details">
+                    <span class="name">Admin Principal</span>
+                    <span class="role">Administrador</span>
+                </div>
+                <div id="user-dropdown-menu" style="display: none; position: absolute; bottom: 100%; right: 0; background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 0.5rem; padding: 0.5rem; min-width: 150px; box-shadow: 0 -5px 15px rgba(0,0,0,0.5); z-index: 10; margin-bottom: 0.5rem;">
+                    <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; color: var(--danger); cursor: pointer; transition: background 0.2s; border-radius: 0.3rem;" id="btn-logout" onmouseover="this.style.background='rgba(255,0,0,0.1)'" onmouseout="this.style.background='transparent'">
+                        <i class="fa-solid fa-arrow-right-from-bracket"></i> Cerrar Sesión
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <div id="password-warning-banner" style="display: none; background-color: var(--danger); color: white; padding: 1rem; text-align: center; font-weight: bold; width: 100%; border-bottom: 2px solid rgba(255,255,255,0.2); animation: pulse 2s infinite;">
+                <i class="fa-solid fa-triangle-exclamation"></i> ¡Por seguridad, debes actualizar tu contraseña! Ve al apartado de "Usuarios" para realizar el cambio.
+            </div>
+            <!-- POS View -->
+            <section id="pos-view" class="view-section active">
+                <header class="view-header">
+                    <h2>Punto de Venta</h2>
+                    <div class="header-actions">
+                        <div class="search-bar">
+                            <i class="fa-solid fa-barcode"></i>
+                            <input type="text" id="barcode-scanner" placeholder="Escanear código o buscar producto..." autofocus>
+                        </div>
+                    </div>
+                </header>
+                
+                <div class="pos-layout">
+                    <!-- Products Grid -->
+                    <div class="products-area">
+                        <div class="products-grid" id="products-grid">
+                            <!-- Products will be dynamically added here -->
+                        </div>
+                    </div>
+
+                    <!-- Cart Area -->
+                    <div class="cart-area">
+                        <div class="cart-header">
+                            <h3>Ticket Actual</h3>
+                            <button class="clear-cart-btn"><i class="fa-solid fa-trash"></i></button>
+                        </div>
+                        <div class="cart-items" id="cart-items">
+                            <!-- Cart items will be listed here -->
+                        </div>
+                        <div class="cart-summary">
+                            <div class="summary-row">
+                                <span>Subtotal</span>
+                                <span id="cart-subtotal">$0.00</span>
+                            </div>
+                            <div class="summary-row discount">
+                                <span>Descuento</span>
+                                <span>-$0.00</span>
+                            </div>
+                            <div class="summary-row total">
+                                <span>Total</span>
+                                <span id="cart-total">$0.00</span>
+                            </div>
+                            <button class="checkout-btn" id="checkout-btn">Cobrar <i class="fa-solid fa-arrow-right"></i></button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Inventory View -->
+            <section id="inventory-view" class="view-section">
+                <header class="view-header">
+                    <h2>Control de Inventario</h2>
+                    <div style="display:flex; gap: 1rem;">
+                        <input type="file" id="file-import" accept=".xlsx, .xls, .csv" style="display: none;">
+                        <button class="btn-secondary" id="btn-import-excel" style="background-color: transparent;"><i class="fa-solid fa-file-import"></i> Importar</button>
+                        <button class="btn-primary" id="btn-export-excel" style="background-color: var(--success);"><i class="fa-solid fa-file-excel"></i> Exportar a Excel</button>
+                        <button class="btn-primary"><i class="fa-solid fa-plus"></i> Nuevo Producto</button>
+                    </div>
+                </header>
+                <div class="content-card table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Código</th>
+                                <th>Producto</th>
+                                <th>Categoría</th>
+                                <th>Stock</th>
+                                <th>P. Compra</th>
+                                <th>P. Venta</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="inventory-table-body">
+                            <!-- Inventory rows -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Reports View -->
+            <section id="reports-view" class="view-section">
+                <header class="view-header">
+                    <h2>Reportes y Estadísticas</h2>
+                    <div style="display:flex; gap: 1rem;">
+                        <button class="btn-primary" style="background-color: var(--success);" id="btn-export-reports"><i class="fa-solid fa-file-excel"></i> Exportar a Excel</button>
+                        <button class="btn-primary" onclick="renderReports()"><i class="fa-solid fa-arrows-rotate"></i> Actualizar</button>
+                    </div>
+                </header>
+                <div class="stats-grid" id="stats-grid">
+                    <!-- Stats will be inserted here -->
+                </div>
+                <div class="content-card table-container" style="margin-top: 2rem;">
+                    <h3 style="padding: 1rem 1.5rem; border-bottom: 1px solid var(--border-color);">Últimas Ventas</h3>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Hora</th>
+                                <th>Cajero</th>
+                                <th>Artículos</th>
+                                <th>Total Venta</th>
+                                <th>Ganancia Estimada</th>
+                            </tr>
+                        </thead>
+                        <tbody id="sales-table-body">
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Users View -->
+            <section id="users-view" class="view-section">
+                <header class="view-header">
+                    <h2>Gestión de Usuarios</h2>
+                </header>
+                
+                <div style="display: flex; gap: 2rem; flex-wrap: wrap; align-items: flex-start;">
+                    
+                    <!-- Main Column -->
+                    <div style="flex: 3; min-width: 300px; display: flex; flex-direction: column; gap: 2rem; overflow-x: hidden;">
+                        <div style="display: flex; justify-content: flex-end;">
+                            <button id="btn-toggle-passwords" class="btn-secondary" style="display: none;"><i class="fa-solid fa-eye"></i> Mostrar Contraseñas</button>
+                        </div>
+                        <div class="table-container" style="overflow-x: auto;">
+                            <table class="data-table" style="font-size: 0.85rem;">
+                                <thead>
+                                    <tr>
+                                        <th>Nombre</th>
+                                        <th>Usuario</th>
+                                        <th>Rol</th>
+                                        <th>Estado</th>
+                                        <th>Contraseña</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="users-table-body">
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <div id="change-password-section" class="table-container" style="padding: 1.5rem; display: none;">
+                            <h3 style="margin-bottom: 1rem;"><i class="fa-solid fa-key"></i> Cambiar Mi Contraseña</h3>
+                            <div style="display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap;">
+                                <div class="input-group" style="margin: 0; flex: 1; min-width: 150px;">
+                                    <label>Contraseña Actual</label>
+                                    <input type="password" id="change-old-pwd" class="form-control" style="background: var(--bg-dark);">
+                                </div>
+                                <div class="input-group" style="margin: 0; flex: 1; min-width: 150px;">
+                                    <label>Nueva Contraseña</label>
+                                    <input type="password" id="change-new-pwd" class="form-control" style="background: var(--bg-dark);">
+                                </div>
+                                <button id="btn-change-password" class="btn-primary" style="height: 42px;">Actualizar</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sidebar Column -->
+                    <div style="flex: 2; min-width: 250px; max-width: 100%; display: flex; flex-direction: column; gap: 2rem;">
+                        
+                        <div id="escalate-admin-section" class="table-container" style="padding: 1.5rem; border-color: var(--warning);">
+                            <h3 style="margin-bottom: 1rem; color: var(--warning);"><i class="fa-solid fa-unlock"></i> Iniciar como Admin</h3>
+                            <p style="margin-bottom: 1rem; font-size: 0.85rem; color: var(--text-muted);">Ingresa la contraseña de administrador para gestionar usuarios.</p>
+                            <div style="display: flex; flex-direction: column; gap: 1rem;">
+                                <input type="password" id="escalate-admin-pwd" placeholder="Contraseña de administrador" class="form-control" style="background: var(--bg-dark);">
+                                <button id="btn-escalate-admin" class="btn-primary" style="background-color: var(--warning); color: black;">Ingresar</button>
+                            </div>
+                        </div>
+
+                        <div id="admin-add-user-section" class="table-container" style="padding: 1.5rem; display: none;">
+                            <h3 style="margin-bottom: 1.5rem; color: var(--primary-color);" id="admin-user-title"><i class="fa-solid fa-user-plus"></i> Agregar Usuario</h3>
+                            <div class="avatar-selector">
+                                <input type="radio" name="admin-avatar" id="admin-avatar1" value="avatar1.jpg" checked>
+                                <label for="admin-avatar1"><img src="avatar1.jpg" alt="Líder Valiente"></label>
+                                <input type="radio" name="admin-avatar" id="admin-avatar2" value="avatar2.jpg">
+                                <label for="admin-avatar2"><img src="avatar2.jpg" alt="Estratega Inteligente"></label>
+                                <input type="radio" name="admin-avatar" id="admin-avatar3" value="avatar3.jpg">
+                                <label for="admin-avatar3"><img src="avatar3.jpg" alt="Disciplinado"></label>
+                                <input type="radio" name="admin-avatar" id="admin-avatar4" value="avatar4.jpg">
+                                <label for="admin-avatar4"><img src="avatar4.jpg" alt="Creativo Audaz"></label>
+                            </div>
+                            <div style="display: flex; flex-direction: column; gap: 1rem;">
+                                <div class="input-group" style="margin: 0;">
+                                    <label>Correo Electrónico</label>
+                                    <input type="email" id="admin-user-email" placeholder="ejemplo@correo.com" class="form-control" style="background: var(--bg-dark);">
+                                </div>
+                                <div class="input-group" style="margin: 0;">
+                                    <label>Nombre Completo</label>
+                                    <input type="text" id="admin-user-name" placeholder="Nombre completo" class="form-control" style="background: var(--bg-dark);">
+                                </div>
+                                <div class="input-group" style="margin: 0;">
+                                    <label>Rol</label>
+                                    <select id="admin-user-role" class="form-control" style="background: var(--bg-dark); color: white; border: 1px solid var(--border-color); height: 100%;" disabled>
+                                        <option value="Cajero" selected>Cajero</option>
+                                        <option value="Administrador">Administrador</option>
+                                    </select>
+                                </div>
+                                <div class="input-group" style="margin: 0;">
+                                    <label>Contraseña del Usuario</label>
+                                    <input type="password" id="admin-user-pass" placeholder="Dejar en blanco para no cambiar" class="form-control" style="background: var(--bg-dark);">
+                                </div>
+                                
+                                <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
+                                    <button id="btn-admin-save-user" class="btn-primary" style="flex: 1;">Guardar Cambios</button>
+                                    <button id="btn-admin-cancel-user" class="btn-secondary" style="display: none; flex: 1;">Cancelar</button>
+                                </div>
+                                <hr style="border-color: var(--border-color); margin: 0.5rem 0;">
+                                <button id="btn-exit-admin" class="btn-secondary" style="background: rgba(255,255,255,0.1);"><i class="fa-solid fa-lock"></i> Cerrar Modo Admin</button>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Checkout Modal -->
+    <div id="checkout-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <h3>Cobrar Ticket</h3>
+            <div class="modal-body">
+                <div class="summary-row total">
+                    <span>Total a cobrar:</span>
+                    <span id="modal-total-amount" style="color: var(--primary-color);">$0.00</span>
+                </div>
+                <div class="input-group">
+                    <label for="amount-paid">Efectivo recibido:</label>
+                    <div class="search-bar" style="width: 100%;">
+                        <i class="fa-solid fa-money-bill"></i>
+                        <input type="number" id="amount-paid" placeholder="Ej. 100" min="0" step="0.01">
+                    </div>
+                </div>
+                <div class="summary-row total change-row">
+                    <span>Cambio a entregar:</span>
+                    <span id="modal-change-amount" style="color: var(--success);">$0.00</span>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button id="confirm-checkout-btn" class="btn-primary" disabled><i class="fa-solid fa-check"></i> Confirmar Pago</button>
+                <button id="cancel-checkout-btn" class="btn-secondary">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <script src="app.js"></script>
+</body>
+</html>
